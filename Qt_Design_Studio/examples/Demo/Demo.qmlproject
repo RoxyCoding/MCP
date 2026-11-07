@@ -1,0 +1,12 @@
+import QmlProject
+
+Project {
+    mainFile: "DemoContent/App.qml"
+    mainUiFile: "DemoContent/Screen01.ui.qml"
+    QmlFiles { directory: "." }
+    JavaScriptFiles { directory: "." }
+    ImageFiles { directory: "." }
+    Files { filter: "qmldir"; directory: "." }
+    importPaths: [ "." ]
+    qt6Project: true
+}

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<style>
+  body { font: 13px system-ui, sans-serif; padding: 12px; color: var(--figma-color-text, #222); background: var(--figma-color-bg, #fff); }
+  label { display: block; margin: 10px 0 4px; }
+  input { width: 100%; box-sizing: border-box; padding: 7px; }
+  button { margin-top: 12px; padding: 7px 14px; cursor: pointer; }
+  #status { line-height: 1.5; }
+</style>
+<h3>Local Figma MCP</h3>
+<label for="port">接続ポート（自動検出）</label><input id="port" type="number" min="1" max="65535" value="3055">
+<label for="token">接続トークン（自動設定）</label><input id="token" type="password" autocomplete="off">
+<button id="connect">接続</button> <button id="disconnect" disabled>切断</button>
+<button id="hide" disabled>接続を維持して非表示</button>
+<p>右上の×はプラグインを終了し、接続を切断します。</p>
+<p>Codex・Claudeの起動中のサーバーへ自動接続します。</p>
+<p id="status" role="status" aria-live="polite">未接続です。MCPサーバーを起動して接続してください。</p>
+<script>
+  let retryTimer;
+  let autoReconnect = false;
+  let loadingConnection = true;
+  const bundledConnection = /* LOCAL_CONNECTION */ null;
+  const pendingReplies = new Map();
+  const channels = new Map();
+  const port = document.getElementById('port');
+  const token = document.getElementById('token');
+  const status = document.getElementById('status');
+  const connect = document.getElementById('connect');
+  const disconnect = document.getElementById('disconnect');
+  const hide = document.getElementById('hide');
+  function connectedChannels() {
+    return [...channels.values()].filter(channel => channel.socket.readyState === WebSocket.OPEN);
+  }
+  function candidatePorts() {
+    return bundledConnection ? bundledConnection.ports || [bundledConnection.port] : [Number(port.value)];
+  }
+  function updateStatus(message) {
+    const connected = connectedChannels();
+    connect.disabled = channels.size > 0;
+    disconnect.disabled = !autoReconnect && channels.size === 0;
+    hide.disabled = connected.length === 0;
+    status.textContent = connected.length
+      ? '接続しました（ポート: ' + connected.map(channel => channel.port).join('、') + '）。Codex・Claudeからこのファイルを操作できます。'
+      : message;
+  }
+  function retryMissing() {
+    clearTimeout(retryTimer);
+    if (autoReconnect && candidatePorts().some(number => !channels.has(number))) {
+      if (!connectedChannels().length) status.textContent += ' 3秒後に自動再接続します。';
+      retryTimer = setTimeout(connectToServer, 3000);
+    }
+  }
+  function closeChannel(channel) {
+    clearTimeout(channel.timer);
+    channels.delete(channel.port);
+    for (const [id, source] of pendingReplies) if (source === channel.socket) pendingReplies.delete(id);
+    channel.socket.onopen = channel.socket.onclose = channel.socket.onerror = channel.socket.onmessage = null;
+    try { channel.socket.close(); } catch {}
+  }
+  function failed(channel, message) {
+    if (channels.get(channel.port) !== channel) return;
+    closeChannel(channel);
+    updateStatus(message);
+    if (!connectedChannels().length) parent.postMessage({ pluginMessage: { type: 'show-ui' } }, '*');
+    retryMissing();
+  }
+  function resetConnection(message) {
+    clearTimeout(retryTimer);
+    for (const channel of [...channels.values()]) closeChannel(channel);
+    updateStatus(message);
+    parent.postMessage({ pluginMessage: { type: 'show-ui' } }, '*');
+  }
+  function connectPort(number, secret) {
+    if (channels.has(number)) return;
+    let client;
+    try { client = new WebSocket('ws://localhost:' + number + '/?token=' + encodeURIComponent(secret)); }
+    catch { updateStatus('接続を開始できません。プラグインのネットワーク許可設定を確認してください。'); return; }
+    const channel = { socket: client, port: number };
+    channels.set(number, channel);
+    channel.timer = setTimeout(() => {
+      failed(channel, '接続がタイムアウトしました。MCPサーバーの起動状態を確認してください。');
+    }, 8000);
+    client.onopen = () => {
+      clearTimeout(channel.timer);
+      updateStatus('接続しました。');
+      retryMissing();
+      parent.postMessage({ pluginMessage: { type: 'save-connection', config: { port: number, token: secret } } }, '*');
+    };
+    client.onclose = event => {
+      failed(channel, event.code === 1008
+        ? '別のプラグインが接続中です。元のプラグインを停止してください。'
+        : '切断しました。MCPサーバーの起動状態を確認してください。');
+    };
+    client.onerror = () => {
+      failed(channel, '接続できません。MCPサーバーの起動状態とプラグインの許可設定を確認してください。');
+    };
+    client.onmessage = event => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message && typeof message.id === 'string' && typeof message.command === 'string') {
+          if (pendingReplies.has(message.id)) {
+            client.send(JSON.stringify({ id: message.id, error: 'Duplicate request ID.' })); return;
+          }
+          pendingReplies.set(message.id, client);
+          parent.postMessage({ pluginMessage: { type: 'command', id: message.id, command: message.command, args: message.args } }, '*');
+        }
+      } catch { client.close(); }
+    };
+  }
+  function connectToServer() {
+    clearTimeout(retryTimer);
+    const numbers = candidatePorts();
+    const secret = token.value.trim();
+    if (secret.length < 32 || !numbers.length || numbers.some(number => !Number.isInteger(number) || number < 1 || number > 65535)) {
+      status.textContent = '接続設定がありません。npm run setupを実行してプラグインを再起動してください。'; return;
+    }
+    for (const number of new Set(numbers)) connectPort(number, secret);
+    updateStatus(channels.size ? '接続中です…' : status.textContent);
+    retryMissing();
+  }
+  connect.onclick = () => {
+    loadingConnection = false;
+    autoReconnect = true;
+    connectToServer();
+  };
+  disconnect.onclick = () => {
+    loadingConnection = false;
+    autoReconnect = false;
+    resetConnection('切断しました。自動再接続を停止しました。');
+  };
+  hide.onclick = () => {
+    if (connectedChannels().length) {
+      parent.postMessage({ pluginMessage: { type: 'hide-ui' } }, '*');
+    }
+  };
+  window.onmessage = event => {
+    const message = event.data && event.data.pluginMessage;
+    if (message && message.type === 'connection-config' && loadingConnection) {
+      loadingConnection = false;
+      const config = bundledConnection || message.config;
+      if (config && Number.isInteger(config.port) && config.port >= 1 && config.port <= 65535 && typeof config.token === 'string' && config.token.length >= 32) {
+        port.value = String(config.port); token.value = config.token;
+        port.readOnly = Boolean(bundledConnection);
+        autoReconnect = true; connectToServer();
+      }
+      return;
+    }
+    if (message && message.type === 'connection-storage-error') {
+      status.textContent = bundledConnection
+        ? '接続設定を保存できませんでした。次回もサーバーを自動検出します。'
+        : '接続設定を保存できませんでした。次回起動時は手動で接続してください。';
+      return;
+    }
+    const source = message && pendingReplies.get(message.id);
+    if (source && source.readyState === WebSocket.OPEN) {
+      pendingReplies.delete(message.id);
+      source.send(JSON.stringify(message));
+    }
+  };
+  parent.postMessage({ pluginMessage: { type: 'load-connection' } }, '*');
+</script>
+</html>

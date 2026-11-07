@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- QDS_WORKSPACE=examples。サンプルは変更せず、list/search/readだけで回答する。 -->
+<evaluation>
+  <qa_pair>
+    <question>Demoのプロジェクト設定から実行用ファイルをたどり、そのファイルが生成する画面コンポーネントの実体ファイルを探してください。ワークスペースからの相対パスだけで回答してください。</question>
+    <answer>Demo/DemoContent/Screen01.ui.qml</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoの設定に記された実行用ファイルと画面用ファイルを読み比べ、両方に指定された共通の幅を整数で回答してください。</question>
+    <answer>1280</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoの設定に記された実行用ファイルと画面用ファイルを読み比べ、両方に指定された共通の高さを整数で回答してください。</question>
+    <answer>720</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoの実行用ファイルから画面コンポーネントをたどり、画面に明示された幅と高さの比を最も簡単な整数比で回答してください。</question>
+    <answer>16:9</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoのプロジェクト設定から画面用ファイルを特定し、実行用ファイルと寸法が一致することを確認したうえで、その画面の面積を整数で回答してください。</question>
+    <answer>921600</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoの実行用ファイルと画面用ファイルを調べてください。ウィンドウのタイトルと画面中央の表示に共通して使われる文字列だけで回答してください。</question>
+    <answer>Demo</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoのウィンドウを埋める画面コンポーネントを実体ファイルまでたどってください。そのコンポーネントのルートに指定された色を16進表記で回答してください。</question>
+    <answer>#f5f5f5</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoの実行用ファイルから中央に文字を表示する画面ファイルを特定してください。その表示要素の色を16進表記で回答してください。</question>
+    <answer>#202124</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoのプロジェクト設定で指定された画面用ファイルと実行用ファイルを確認してください。画面中央の文字に指定されたピクセル単位のフォントサイズを整数で回答してください。</question>
+    <answer>32</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Demoのプロジェクト設定から実行用ファイルをたどり、そこから画面の実体を調べてください。実行用ファイルのWindow内部に配置され、親全体を埋めるカスタム型名だけを回答してください。</question>
+    <answer>Screen01</answer>
+  </qa_pair>
+</evaluation>

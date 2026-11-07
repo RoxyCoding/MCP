@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.env
+projects/
+*.local.json
+*.local.toml
+.qds-mcp-backups/
